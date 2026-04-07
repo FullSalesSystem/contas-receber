@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { DEVEDORES_INICIAIS } from "@/data/devedores";
 import {
   CORES_PRODUTO, CORES_PRODUTO_CHART, CORES_STATUS_WA, CORES_STATUS_WA_CHART,
   CORES_RISCO, CORES_RISCO_CHART, CORES_PAGAMENTO_CHART,
@@ -15,8 +14,8 @@ import {
   timestampAtual, formatarMoeda, formatarMoedaCurta,
 } from "@/utils/formatters";
 import { exportToCSV } from "@/utils/exportCSV";
-import type { ColorPair, ClientMeta, SearchFilter } from "@/types";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
+import type { ColorPair, SearchFilter } from "@/types";
+import { useDevedores } from "@/hooks/useDevedores";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePagination } from "@/hooks/usePagination";
 import AuthGate from "@/components/AuthGate";
@@ -73,11 +72,8 @@ function yn(v: string) {
 // ── App principal ───────────────────────────────────────────────────
 function AppContent() {
   const { toasts, addToast, removeToast } = useToast();
-  const [hydrated, setHydrated] = useState(false);
-
-  // Persistent state
-  const [rows, setRows] = useLocalStorage<string[][]>("cr_rows", DEVEDORES_INICIAIS.map((r) => [...r, r[17] || ""]));
-  const [clientMeta, setClientMeta] = useLocalStorage<Record<number, ClientMeta & { audit?: AuditEntry[] }>>("cr_meta", {});
+  const { rows, loading: dbLoading, updateRow, insertRow, insertMany, fetchAudit } = useDevedores();
+  const hydrated = !dbLoading;
 
   // UI state
   const [tab, setTab] = useState(0);
@@ -119,12 +115,9 @@ function AppContent() {
   // Import
   const [importOpen, setImportOpen] = useState(false);
 
-  // Hydration
-  useEffect(() => { setHydrated(true); }, []);
-
   // Due date notifications on load
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || rows.length === 0) return;
     let upcoming = 0;
     let overdue = 0;
     rows.forEach((r) => {
@@ -139,15 +132,16 @@ function AppContent() {
   }, [hydrated]);
 
   // ── Callbacks ───────────────────────────────────────────────────
-  const openCard = useCallback((r: string[], gi: number) => {
-    const m = clientMeta[gi] || { obs: "", hist: [], audit: [] };
-    setCardIdx(gi);
+  const openCard = useCallback(async (r: string[], _gi: number) => {
+    setCardIdx(_gi);
     setCardData([...r]);
     setCardOriginal([...r]);
-    setCardObs(m.obs || "");
-    setCardAudit(m.audit || []);
+    setCardObs(r[21] || "");
     setCardOpen(true);
-  }, [clientMeta]);
+    // Fetch audit trail from Supabase
+    const audit = await fetchAudit(r);
+    setCardAudit(audit);
+  }, [fetchAudit]);
 
   const closeCard = useCallback(() => {
     setCardOpen(false);
@@ -160,11 +154,12 @@ function AppContent() {
     setCardData((p) => { const n = [...(p || [])]; n[idx] = val; return n; });
   }, []);
 
-  const saveCard = useCallback(() => {
+  const saveCard = useCallback(async () => {
     if (cardIdx === null || !cardData || !cardOriginal) return;
     const ts = timestampAtual();
     const updated = [...cardData];
     updated[19] = ts;
+    updated[21] = cardObs; // observacao
 
     // Build field-level audit entries
     const newAudit: AuditEntry[] = [];
@@ -179,21 +174,14 @@ function AppContent() {
       }
     }
 
-    setRows((p) => p.map((r, i) => (i === cardIdx ? updated : r)));
-    setClientMeta((p) => ({
-      ...p,
-      [cardIdx]: {
-        obs: cardObs,
-        hist: [...(p[cardIdx]?.hist || []), ts],
-        audit: [...(p[cardIdx]?.audit || []), ...newAudit],
-      },
-    }));
-
-    if (newAudit.length > 0) {
+    const ok = await updateRow(updated, newAudit);
+    if (ok && newAudit.length > 0) {
       addToast(`${newAudit.length} campo(s) alterado(s) em ${cardData[1]}`, "success");
+    } else if (!ok) {
+      addToast("Erro ao salvar alteracoes", "error");
     }
     closeCard();
-  }, [cardData, cardOriginal, cardIdx, cardObs, closeCard, setRows, setClientMeta, addToast]);
+  }, [cardData, cardOriginal, cardIdx, cardObs, closeCard, updateRow, addToast]);
 
   const openWhatsApp = useCallback((r: string[]) => {
     const nome = r[1].split("-")[0].trim().split(" ")[0];
@@ -442,7 +430,7 @@ function AppContent() {
     return errors;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) { setFormErrors(errors); return; }
     const ts = timestampAtual();
@@ -453,17 +441,22 @@ function AppContent() {
       form.dtParcela, "Verificar", "Nao", "Verificar", "Nao", "Nao", "Nao",
       "Entrar em contato", "", "R$ 0,00", ts,
     ];
-    setRows((p) => [...p, newRow]);
-    setForm({ ...FORM_VAZIO });
-    setFormErrors({});
-    setFormSuccess(true);
-    addToast(`${form.nome.trim()} cadastrado com sucesso`, "success");
-    setTimeout(() => setFormSuccess(false), 3000);
+    const ok = await insertRow(newRow);
+    if (ok) {
+      setForm({ ...FORM_VAZIO });
+      setFormErrors({});
+      setFormSuccess(true);
+      addToast(`${form.nome.trim()} cadastrado com sucesso`, "success");
+      setTimeout(() => setFormSuccess(false), 3000);
+    } else {
+      addToast("Erro ao cadastrar devedor", "error");
+    }
   };
 
-  const handleImport = (newRows: string[][]) => {
-    setRows((p) => [...p, ...newRows]);
-    addToast(`${newRows.length} registros importados com sucesso`, "success");
+  const handleImport = async (newRows: string[][]) => {
+    const count = await insertMany(newRows);
+    if (count > 0) addToast(`${count} registros importados com sucesso`, "success");
+    else addToast("Erro ao importar registros", "error");
   };
 
   const setFormField = (field: string) => (val: string) => setForm((p) => ({ ...p, [field]: val }));

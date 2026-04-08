@@ -14,6 +14,7 @@ import {
   timestampAtual, formatarMoeda, formatarMoedaCurta,
 } from "@/utils/formatters";
 import { exportToCSV } from "@/utils/exportCSV";
+import { IDX_DB_ID, IDX_OBS } from "@/types/database";
 import type { ColorPair, SearchFilter } from "@/types";
 import { useDevedores } from "@/hooks/useDevedores";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -72,7 +73,7 @@ function yn(v: string) {
 // ── App principal ───────────────────────────────────────────────────
 function AppContent() {
   const { toasts, addToast, removeToast } = useToast();
-  const { rows, loading: dbLoading, updateRow, insertRow, insertMany, fetchAudit } = useDevedores();
+  const { rows, loading: dbLoading, error: dbError, updateRow, insertRow, insertMany, fetchAudit } = useDevedores();
   const hydrated = !dbLoading;
 
   // UI state
@@ -136,7 +137,7 @@ function AppContent() {
     setCardIdx(_gi);
     setCardData([...r]);
     setCardOriginal([...r]);
-    setCardObs(r[21] || "");
+    setCardObs(r[IDX_OBS] || "");
     setCardOpen(true);
     // Fetch audit trail from Supabase
     const audit = await fetchAudit(r);
@@ -159,7 +160,7 @@ function AppContent() {
     const ts = timestampAtual();
     const updated = [...cardData];
     updated[19] = ts;
-    updated[21] = cardObs; // observacao
+    updated[IDX_OBS] = cardObs;
 
     // Build field-level audit entries
     const newAudit: AuditEntry[] = [];
@@ -461,15 +462,23 @@ function AppContent() {
 
   const setFormField = (field: string) => (val: string) => setForm((p) => ({ ...p, [field]: val }));
 
+  // ── Index map for O(1) lookup ─────────────────────────────────
+  const rowIndexMap = useMemo(() => {
+    const map = new Map<string[], number>();
+    rows.forEach((r, i) => map.set(r, i));
+    return map;
+  }, [rows]);
+
   // ── Render de linha da tabela ─────────────────────────────────
-  const renderRow = (r: string[], i: number) => {
-    const gi = rows.indexOf(r);
+  const renderRow = (r: string[], _i: number) => {
+    const gi = rowIndexMap.get(r) ?? -1;
+    const rowId = r[IDX_DB_ID] || String(gi);
     const isDup = duplicates.has(gi);
     const isJur = r[15].includes("Sim");
     const bg = isDup ? "#fff0f0" : r[0] === "ok" ? "#f0fff4" : isJur ? "#fff5f5" : "#fff";
 
     return (
-      <tr key={i} style={{ background: bg }}>
+      <tr key={rowId} style={{ background: bg }}>
         <td style={TDm}>{isDataValida(r[0]) ? r[0] : ""}</td>
         <td style={{ ...TD, background: isDup ? "#fdd" : "#fff" }}>
           <span onClick={() => openCard(r, gi)} style={{ cursor: "pointer", color: "#185FA5", textDecoration: "underline", fontWeight: 500 }}>{r[1]}</span>
@@ -515,6 +524,16 @@ function AppContent() {
       position: "relative",
     }}>
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* DB Error Banner */}
+      {dbError && (
+        <div style={{
+          padding: "10px 16px", background: D.redDim, borderBottom: `1px solid ${D.red}`,
+          color: D.redTx, fontSize: 13, textAlign: "center",
+        }}>
+          {dbError}
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{

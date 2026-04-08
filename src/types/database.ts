@@ -57,20 +57,25 @@ export function dbToArray(d: DevedorRow): string[] {
     d.status_wa || "", d.dt_contato || "", d.valor_recebido || "", d.ult_alteracao || "",
   ];
   // Store id as index 20 for reference
-  arr[20] = String(d.id);
+  arr[IDX_DB_ID] = String(d.id);
   // Store observacao as index 21
-  arr[21] = d.observacao || "";
+  arr[IDX_OBS] = d.observacao || "";
   return arr;
 }
 
+/** Index where DB id is stored in the UI array */
+export const IDX_DB_ID = 20;
+/** Index where observacao is stored in the UI array */
+export const IDX_OBS = 21;
+
 /** Convert string array back to DB update object */
 export function arrayToUpdate(arr: string[]): DevedorUpdate {
-  const obj: Record<string, string> = {};
+  const result: DevedorUpdate = {};
   for (const [idx, col] of Object.entries(COL_MAP)) {
-    obj[col] = arr[+idx] || "";
+    (result as Record<string, string>)[col] = arr[+idx] || "";
   }
-  obj.observacao = arr[21] || "";
-  return obj as unknown as DevedorUpdate;
+  result.observacao = arr[IDX_OBS] || "";
+  return result;
 }
 
 /** Convert string array to insert object (for new records) */
@@ -102,7 +107,7 @@ export function arrayToInsert(arr: string[]): DevedorInsert {
 
 /** Get the DB id from a UI row array */
 export function getRowId(arr: string[]): number | null {
-  const id = parseInt(arr[20], 10);
+  const id = parseInt(arr[IDX_DB_ID], 10);
   return isNaN(id) ? null : id;
 }
 

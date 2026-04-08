@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { dbToArray, arrayToUpdate, arrayToInsert, getRowId } from "@/types/database";
 import type { AuditEntry } from "@/components/ClientCard";
@@ -8,21 +8,30 @@ import type { AuditEntry } from "@/components/ClientCard";
 export function useDevedores() {
   const [rows, setRows] = useState<string[][]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const mounted = useRef(true);
 
-  // Fetch all devedores on mount
   useEffect(() => {
+    mounted.current = true;
     fetchAll();
+    return () => { mounted.current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    setError(null);
+
+    const { data, error: fetchErr } = await supabase
       .from("devedores")
       .select("*")
       .order("id", { ascending: true });
 
-    if (error) {
-      console.error("Fetch error:", error.message);
+    if (!mounted.current) return;
+
+    if (fetchErr) {
+      console.error("Fetch error:", fetchErr.message);
+      setError("Erro ao carregar dados: " + fetchErr.message);
       setLoading(false);
       return;
     }
@@ -31,7 +40,6 @@ export function useDevedores() {
     setLoading(false);
   };
 
-  // Update a single row
   const updateRow = useCallback(async (
     rowArr: string[],
     auditEntries: AuditEntry[],
@@ -41,17 +49,17 @@ export function useDevedores() {
 
     const updateData = arrayToUpdate(rowArr);
 
-    const { error } = await supabase
+    const { error: updateErr } = await supabase
       .from("devedores")
       .update({ ...updateData, updated_at: new Date().toISOString() })
       .eq("id", id);
 
-    if (error) {
-      console.error("Update error:", error.message);
+    if (updateErr) {
+      console.error("Update error:", updateErr.message);
       return false;
     }
 
-    // Insert audit entries
+    // Insert audit entries (log but don't block on error)
     if (auditEntries.length > 0) {
       const auditRows = auditEntries.map((a) => ({
         devedor_id: id,
@@ -61,68 +69,71 @@ export function useDevedores() {
         new_value: a.to,
       }));
 
-      await supabase.from("audit_trail").insert(auditRows);
+      const { error: auditErr } = await supabase.from("audit_trail").insert(auditRows);
+      if (auditErr) {
+        console.error("Audit insert error:", auditErr.message);
+      }
     }
 
     // Update local state
-    setRows((prev) => prev.map((r) => {
-      if (getRowId(r) === id) return rowArr;
-      return r;
-    }));
+    if (mounted.current) {
+      setRows((prev) => prev.map((r) => (getRowId(r) === id ? rowArr : r)));
+    }
 
     return true;
   }, []);
 
-  // Insert a new row
   const insertRow = useCallback(async (rowArr: string[]): Promise<boolean> => {
     const insertData = arrayToInsert(rowArr);
 
-    const { data, error } = await supabase
+    const { data, error: insertErr } = await supabase
       .from("devedores")
       .insert(insertData)
       .select()
       .single();
 
-    if (error) {
-      console.error("Insert error:", error.message);
+    if (insertErr) {
+      console.error("Insert error:", insertErr.message);
       return false;
     }
 
-    setRows((prev) => [...prev, dbToArray(data)]);
+    if (mounted.current) {
+      setRows((prev) => [...prev, dbToArray(data)]);
+    }
     return true;
   }, []);
 
-  // Insert multiple rows (import)
   const insertMany = useCallback(async (rowArrs: string[][]): Promise<number> => {
     const inserts = rowArrs.map(arrayToInsert);
 
-    const { data, error } = await supabase
+    const { data, error: insertErr } = await supabase
       .from("devedores")
       .insert(inserts)
       .select();
 
-    if (error) {
-      console.error("Insert many error:", error.message);
+    if (insertErr) {
+      console.error("Insert many error:", insertErr.message);
       return 0;
     }
 
-    setRows((prev) => [...prev, ...(data || []).map(dbToArray)]);
+    if (mounted.current) {
+      setRows((prev) => [...prev, ...(data || []).map(dbToArray)]);
+    }
     return data?.length || 0;
   }, []);
 
-  // Fetch audit trail for a specific devedor
   const fetchAudit = useCallback(async (rowArr: string[]): Promise<AuditEntry[]> => {
     const id = getRowId(rowArr);
     if (!id) return [];
 
-    const { data, error } = await supabase
+    const { data, error: auditErr } = await supabase
       .from("audit_trail")
       .select("*")
       .eq("devedor_id", id)
       .order("created_at", { ascending: true });
 
-    if (error) {
-      console.error("Audit fetch error:", error.message);
+    if (auditErr) {
+      console.error("Audit fetch error:", auditErr.message);
       return [];
     }
 
@@ -137,6 +148,7 @@ export function useDevedores() {
   return {
     rows,
     loading,
+    error,
     updateRow,
     insertRow,
     insertMany,

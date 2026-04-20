@@ -19,6 +19,7 @@ export interface DevedorRow {
   status_wa: string;
   dt_contato: string;
   valor_recebido: string;
+  dt_recebido: string;
   ult_alteracao: string;
   observacao: string;
   created_at: string;
@@ -44,7 +45,7 @@ const COL_MAP: Record<number, keyof DevedorRow> = {
   5: "valor_total", 6: "em_atraso", 7: "parc_atraso", 8: "parc_vencer",
   9: "dt_parcela", 10: "cliente_ativo", 11: "acordo", 12: "acesso",
   13: "serasa", 14: "protesto", 15: "juridico", 16: "status_wa",
-  17: "dt_contato", 18: "valor_recebido", 19: "ult_alteracao",
+  17: "dt_contato", 18: "valor_recebido", 19: "dt_recebido", 20: "ult_alteracao",
 };
 
 /** Convert DB row to the string array format used by the UI */
@@ -54,19 +55,20 @@ export function dbToArray(d: DevedorRow): string[] {
     d.pagamento || "", d.valor_total || "", d.em_atraso || "", d.parc_atraso || "",
     d.parc_vencer || "", d.dt_parcela || "", d.cliente_ativo || "", d.acordo || "",
     d.acesso || "", d.serasa || "", d.protesto || "", d.juridico || "",
-    d.status_wa || "", d.dt_contato || "", d.valor_recebido || "", d.ult_alteracao || "",
+    d.status_wa || "", d.dt_contato || "", d.valor_recebido || "", d.dt_recebido || "",
+    d.ult_alteracao || "",
   ];
-  // Store id as index 20 for reference
+  // Store id as index 21 for reference
   arr[IDX_DB_ID] = String(d.id);
-  // Store observacao as index 21
+  // Store observacao as index 22
   arr[IDX_OBS] = d.observacao || "";
   return arr;
 }
 
 /** Index where DB id is stored in the UI array */
-export const IDX_DB_ID = 20;
+export const IDX_DB_ID = 21;
 /** Index where observacao is stored in the UI array */
-export const IDX_OBS = 21;
+export const IDX_OBS = 22;
 
 /** Convert string array back to DB update object */
 export function arrayToUpdate(arr: string[]): DevedorUpdate {
@@ -100,8 +102,9 @@ export function arrayToInsert(arr: string[]): DevedorInsert {
     status_wa: arr[16] || "Entrar em contato",
     dt_contato: arr[17] || "",
     valor_recebido: arr[18] || "R$ 0,00",
-    ult_alteracao: arr[19] || "",
-    observacao: arr[21] || "",
+    dt_recebido: arr[19] || "",
+    ult_alteracao: arr[20] || "",
+    observacao: arr[IDX_OBS] || "",
   };
 }
 

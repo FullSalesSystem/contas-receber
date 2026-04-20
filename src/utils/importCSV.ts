@@ -19,6 +19,7 @@ const HEADER_MAP: Record<string, number> = {
   "status wa": 16, "whatsapp": 16,
   "dt contato": 17, "data contato": 17, "dt.contato": 17,
   "valor recebido": 18, "vl recebido": 18, "vl.recebido": 18, "recebido": 18,
+  "dt recebido": 19, "data recebido": 19, "dt.recebido": 19,
 };
 
 export interface ImportResult {
@@ -56,7 +57,7 @@ export function parseCSV(text: string): ImportResult {
     const cells = lines[i].split(sep).map((c) => c.trim().replace(/^"|"$/g, ""));
 
     // Create empty row with defaults
-    const row = Array(20).fill("");
+    const row = Array(21).fill("");
     row[0] = today;
     row[10] = "Verificar";
     row[11] = "Nao";
@@ -66,7 +67,8 @@ export function parseCSV(text: string): ImportResult {
     row[15] = "Nao";
     row[16] = "Entrar em contato";
     row[18] = "R$ 0,00";
-    row[19] = ts;
+    row[19] = "";       // dt_recebido (vazio por padrão)
+    row[20] = ts;       // ult_alteracao
 
     // Fill from CSV
     Object.entries(colMap).forEach(([csvIdx, rowIdx]) => {

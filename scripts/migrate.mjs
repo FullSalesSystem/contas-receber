@@ -34,6 +34,7 @@ async function migrate() {
       status_wa TEXT DEFAULT 'Entrar em contato',
       dt_contato TEXT DEFAULT '',
       valor_recebido TEXT DEFAULT 'R$ 0,00',
+      dt_recebido TEXT DEFAULT '',
       ult_alteracao TEXT DEFAULT '',
       observacao TEXT DEFAULT '',
       created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -41,6 +42,18 @@ async function migrate() {
     )
   `;
   console.log("  ✓ devedores");
+
+  // Add dt_recebido column if it doesn't exist yet (for existing databases)
+  try {
+    await sql`ALTER TABLE devedores ADD COLUMN IF NOT EXISTS dt_recebido TEXT DEFAULT ''`;
+    console.log("  ✓ devedores.dt_recebido (alter)");
+  } catch (e) {
+    if (e.message?.includes("already exists")) {
+      console.log("  ~ devedores.dt_recebido (already exists)");
+    } else {
+      throw e;
+    }
+  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS audit_trail (

@@ -48,6 +48,7 @@ const FIELD_NAMES: Record<number, string> = {
   5: "Vl.Total", 6: "Em Atraso", 7: "P.Atraso", 8: "P.Vencer", 9: "Dt.Parcela",
   10: "Cli.Ativo", 11: "Acordo", 12: "Acesso", 13: "SERASA", 14: "Protesto",
   15: "Juridico", 16: "Status WA", 17: "Dt.Contato", 18: "Vl.Recebido",
+  19: "Dt.Recebido",
 };
 
 // ── Helpers de render ───────────────────────────────────────────────
@@ -159,12 +160,12 @@ function AppContent() {
     if (cardIdx === null || !cardData || !cardOriginal) return;
     const ts = timestampAtual();
     const updated = [...cardData];
-    updated[19] = ts;
+    updated[20] = ts;
     updated[IDX_OBS] = cardObs;
 
     // Build field-level audit entries
     const newAudit: AuditEntry[] = [];
-    for (let i = 0; i <= 18; i++) {
+    for (let i = 0; i <= 19; i++) {
       if (cardData[i] !== cardOriginal[i]) {
         newAudit.push({
           ts,
@@ -440,7 +441,7 @@ function AppContent() {
       today, form.nome.trim(), form.produto, form.celular.replace(/\D/g, ""),
       form.pagamento, form.vlTotal, form.emAtraso, form.parcAtraso, form.parcVencer,
       form.dtParcela, "Verificar", "Nao", "Verificar", "Nao", "Nao", "Nao",
-      "Entrar em contato", "", "R$ 0,00", ts,
+      "Entrar em contato", "", "R$ 0,00", "", ts,
     ];
     const ok = await insertRow(newRow);
     if (ok) {
@@ -503,6 +504,7 @@ function AppContent() {
         <td style={TDm}>{r[17]}</td>
         <td style={{ ...TD, color: parseValor(r[18]) > 0 ? "#27500A" : "#bbb", fontWeight: parseValor(r[18]) > 0 ? 500 : 400 }}>{r[18]}</td>
         <td style={TDm}>{r[19] || ""}</td>
+        <td style={TDm}>{r[20] || ""}</td>
       </tr>
     );
   };

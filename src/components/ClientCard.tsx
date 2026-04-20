@@ -50,6 +50,7 @@ const FIELDS = [
   { label: "Status WA", idx: 16, sel: true },
   { label: "Dt. contato", idx: 17 },
   { label: "Valor recebido", idx: 18 },
+  { label: "Dt. recebido", idx: 19 },
   { label: "Ult. alteracao", ro: true, idx: -2 },
 ];
 
@@ -60,7 +61,7 @@ export default function ClientCard({
 
   const getReadonlyValue = (idx: number) => {
     if (idx === -1) return diasAtrasoLabel(data[9], data[0] === "ok");
-    if (idx === -2) return data[19] || "--";
+    if (idx === -2) return data[20] || "--";
     return "";
   };
 

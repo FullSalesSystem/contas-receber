@@ -108,6 +108,7 @@ export const CAMPOS_PESQUISA = [
   { key: "wa", label: "Status WA", idx: 16, type: "select", opts: ["Acordo fechado", "Negociando", "Respondeu", "Enviado", "Nao Respondeu", "Entrar em contato"] },
   { key: "dtCont", label: "Dt. contato", idx: 17, type: "date_range" },
   { key: "vlRec", label: "Vl. recebido", idx: 18, type: "money_range" },
+  { key: "dtRec", label: "Dt. recebido", idx: 19, type: "date_range" },
 ];
 
 // ── Colunas da tabela principal ─────────────────────────────────────
@@ -117,7 +118,7 @@ export const COLUNAS_TABELA: [string, number | "dias"][] = [
   ["P.Vencer", 8], ["Dt.Parcela", 9], ["Dias", "dias"], ["Cli.Ativo", 10],
   ["Acordo", 11], ["Acesso", 12], ["SERASA", 13], ["Protesto", 14],
   ["Juridico", 15], ["Status WA", 16], ["Dt.Contato", 17], ["Vl.Recebido", 18],
-  ["Ult.Alt.", 19],
+  ["Dt.Recebido", 19], ["Ult.Alt.", 20],
 ];
 
 // ── Opções de select para edição ────────────────────────────────────

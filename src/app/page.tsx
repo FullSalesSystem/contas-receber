@@ -268,10 +268,10 @@ function AppContent() {
     const porStatusWA: Record<string, number> = {};
     const porPagamento: Record<string, number> = {};
 
+    // Em atraso, vendido e gráficos: filtram por dt_parcela (via dashRows)
     dashRows.forEach((r) => {
       totalVendido += parseValor(r[5]);
       totalAtraso += parseValor(r[6]);
-      totalRecebido += parseValor(r[18]);
       const prod = r[2] || "Sem produto";
       porProduto[prod] = (porProduto[prod] || 0) + parseValor(r[6]);
       const jur = r[15], serasa = r[13], protesto = r[14];
@@ -286,8 +286,20 @@ function AppContent() {
       porPagamento[pag] = (porPagamento[pag] || 0) + parseValor(r[6]);
     });
 
+    // Recebido: filtra por dt_recebido (data correta do recebimento)
+    const f = parseDataBR(dashFrom);
+    const t = parseDataBR(dashTo);
+    rows.forEach((r) => {
+      const dtRec = parseDataBR(r[19]);
+      if (!f && !t) {
+        totalRecebido += parseValor(r[18]);
+      } else if (dtRec && (!f || dtRec >= f) && (!t || dtRec <= t)) {
+        totalRecebido += parseValor(r[18]);
+      }
+    });
+
     return { totalVendido, totalAtraso, totalRecebido, porProduto, porRisco, porStatusWA, porPagamento };
-  }, [dashRows]);
+  }, [dashRows, rows, dashFrom, dashTo]);
 
   const filtered = useMemo(() => {
     let rs = rows.filter((r) => {
@@ -401,7 +413,9 @@ function AppContent() {
         if (r[13] === "Sim") ser++;
         if (r[14] === "Sim") pro++;
       }
-      rec += parseValor(r[18]);
+      // Recebido: filtra por dt_recebido (r[19])
+      const dtRec = parseDataBR(r[19]);
+      if (inRange(dtRec)) rec += parseValor(r[18]);
     });
     return { nc, nd, rec, ac, jur, env, neg, ser, pro, newItems };
   }, [rows, ctrlFrom, ctrlTo]);

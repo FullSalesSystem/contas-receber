@@ -1,7 +1,7 @@
 "use client";
 
 import { SELECT_OPTIONS } from "@/data/constants";
-import { diasAtrasoLabel } from "@/utils/formatters";
+import { diasAtrasoLabel, mascaraData } from "@/utils/formatters";
 
 export interface AuditEntry {
   ts: string;
@@ -30,7 +30,7 @@ const INPUT_STYLE: React.CSSProperties = {
 };
 
 const FIELDS = [
-  { label: "Dt. Inclusao", idx: 0 },
+  { label: "Dt. Inclusao", idx: 0, date: true },
   { label: "Nome", idx: 1 },
   { label: "Produto", idx: 2, sel: true },
   { label: "Celular", idx: 3 },
@@ -39,7 +39,7 @@ const FIELDS = [
   { label: "Em atraso", idx: 6 },
   { label: "Parc. em atraso", idx: 7 },
   { label: "Parc. a vencer", idx: 8 },
-  { label: "Dt. parcela", idx: 9 },
+  { label: "Dt. parcela", idx: 9, date: true },
   { label: "Dias em atraso", ro: true, idx: -1 },
   { label: "Cliente ativo", idx: 10, sel: true },
   { label: "Acordo", idx: 11, sel: true },
@@ -48,9 +48,9 @@ const FIELDS = [
   { label: "Protesto", idx: 14, sel: true },
   { label: "Juridico", idx: 15, sel: true },
   { label: "Status WA", idx: 16, sel: true },
-  { label: "Dt. contato", idx: 17 },
+  { label: "Dt. contato", idx: 17, date: true },
   { label: "Valor recebido", idx: 18 },
-  { label: "Dt. recebido", idx: 19 },
+  { label: "Dt. recebido", idx: 19, date: true },
   { label: "Ult. alteracao", ro: true, idx: -2 },
 ];
 
@@ -137,6 +137,17 @@ export default function ClientCard({
                       <option key={o} value={o}>{o || "--"}</option>
                     ))}
                   </select>
+                ) : f.date ? (
+                  <input
+                    type="text"
+                    value={data[f.idx] || ""}
+                    onChange={(e) => onChange(f.idx, mascaraData(e.target.value))}
+                    placeholder="dd/mm/aaaa"
+                    style={{
+                      ...INPUT_STYLE,
+                      borderColor: changed ? "#185FA5" : "#ccc",
+                    }}
+                  />
                 ) : (
                   <input
                     type="text"

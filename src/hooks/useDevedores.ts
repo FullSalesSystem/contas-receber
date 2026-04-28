@@ -5,6 +5,28 @@ import { supabase } from "@/lib/supabase";
 import { dbToArray, arrayToUpdate, arrayToInsert, getRowId } from "@/types/database";
 import type { AuditEntry } from "@/components/ClientCard";
 
+// Columns that may not exist yet in older DB instances
+const OPTIONAL_COLUMNS = ["dt_recebido"];
+
+/** Remove optional columns that don't yet exist from an update/insert payload */
+function stripMissingCols(payload: Record<string, unknown>, colName: string) {
+  const copy = { ...payload };
+  delete copy[colName];
+  return copy;
+}
+
+function isMissingColError(msg: string | undefined, col: string) {
+  if (!msg) return false;
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes(col) &&
+    (lower.includes("does not exist") ||
+      lower.includes("not found") ||
+      lower.includes("schema cache") ||
+      lower.includes("no such column"))
+  );
+}
+
 export function useDevedores() {
   const [rows, setRows] = useState<string[][]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,12 +69,28 @@ export function useDevedores() {
     const id = getRowId(rowArr);
     if (!id) return false;
 
-    const updateData = arrayToUpdate(rowArr);
+    let updateData: Record<string, unknown> = {
+      ...arrayToUpdate(rowArr),
+      updated_at: new Date().toISOString(),
+    };
 
-    const { error: updateErr } = await supabase
+    let { error: updateErr } = await supabase
       .from("devedores")
-      .update({ ...updateData, updated_at: new Date().toISOString() })
+      .update(updateData)
       .eq("id", id);
+
+    // Retry without optional columns that may not exist in DB yet
+    for (const col of OPTIONAL_COLUMNS) {
+      if (updateErr && isMissingColError(updateErr.message, col)) {
+        console.warn(`Column "${col}" missing in DB, retrying without it...`);
+        updateData = stripMissingCols(updateData, col);
+        const retry = await supabase
+          .from("devedores")
+          .update(updateData)
+          .eq("id", id);
+        updateErr = retry.error;
+      }
+    }
 
     if (updateErr) {
       console.error("Update error:", updateErr.message);
@@ -84,13 +122,28 @@ export function useDevedores() {
   }, []);
 
   const insertRow = useCallback(async (rowArr: string[]): Promise<boolean> => {
-    const insertData = arrayToInsert(rowArr);
+    let insertData: Record<string, unknown> = arrayToInsert(rowArr);
 
-    const { data, error: insertErr } = await supabase
+    let { data, error: insertErr } = await supabase
       .from("devedores")
       .insert(insertData)
       .select()
       .single();
+
+    // Retry without optional columns that may not exist in DB yet
+    for (const col of OPTIONAL_COLUMNS) {
+      if (insertErr && isMissingColError(insertErr.message, col)) {
+        console.warn(`Column "${col}" missing in DB, retrying without it...`);
+        insertData = stripMissingCols(insertData, col);
+        const retry = await supabase
+          .from("devedores")
+          .insert(insertData)
+          .select()
+          .single();
+        insertErr = retry.error;
+        data = retry.data;
+      }
+    }
 
     if (insertErr) {
       console.error("Insert error:", insertErr.message);
@@ -104,12 +157,26 @@ export function useDevedores() {
   }, []);
 
   const insertMany = useCallback(async (rowArrs: string[][]): Promise<number> => {
-    const inserts = rowArrs.map(arrayToInsert);
+    let inserts: Record<string, unknown>[] = rowArrs.map(arrayToInsert);
 
-    const { data, error: insertErr } = await supabase
+    let { data, error: insertErr } = await supabase
       .from("devedores")
       .insert(inserts)
       .select();
+
+    // Retry without optional columns that may not exist in DB yet
+    for (const col of OPTIONAL_COLUMNS) {
+      if (insertErr && isMissingColError(insertErr.message, col)) {
+        console.warn(`Column "${col}" missing in DB, retrying without it...`);
+        inserts = inserts.map((r) => stripMissingCols(r, col));
+        const retry = await supabase
+          .from("devedores")
+          .insert(inserts)
+          .select();
+        insertErr = retry.error;
+        data = retry.data;
+      }
+    }
 
     if (insertErr) {
       console.error("Insert many error:", insertErr.message);

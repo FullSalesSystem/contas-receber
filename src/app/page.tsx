@@ -20,6 +20,7 @@ import { useDevedores } from "@/hooks/useDevedores";
 import { useDebounce } from "@/hooks/useDebounce";
 import { usePagination } from "@/hooks/usePagination";
 import AuthGate from "@/components/AuthGate";
+import { useRole } from "@/context/RoleContext";
 import Donut from "@/components/Donut";
 import ClientCard, { type AuditEntry } from "@/components/ClientCard";
 import Pagination from "@/components/Pagination";
@@ -73,12 +74,16 @@ function yn(v: string) {
 
 // ── App principal ───────────────────────────────────────────────────
 function AppContent() {
+  const role = useRole();
+  const readOnly = role === "viewer";
   const { toasts, addToast, removeToast } = useToast();
   const { rows, loading: dbLoading, error: dbError, updateRow, insertRow, insertMany, fetchAudit } = useDevedores();
   const hydrated = !dbLoading;
 
   // UI state
   const [tab, setTab] = useState(0);
+  // Ensure viewer never lands on "Novo Devedor" tab (index 4)
+  const safeSetTab = (i: number) => setTab(readOnly && i === 4 ? 0 : i);
   const [form, setForm] = useState<Record<string, string>>({ ...FORM_VAZIO });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [formSuccess, setFormSuccess] = useState(false);
@@ -557,19 +562,25 @@ function AppContent() {
         background: isLightTab ? "#fff" : D.card, padding: "0 1rem",
         overflowX: "auto",
       }}>
-        {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)} style={{
-            padding: "10px 18px", fontSize: 13, fontWeight: tab === i ? 600 : 400,
-            border: "none", borderBottom: tab === i ? "2px solid #185FA5" : "2px solid transparent",
-            background: "none", cursor: "pointer", color: tab === i ? "#185FA5" : "#888",
-            whiteSpace: "nowrap",
-          }}>
-            {t}
-          </button>
-        ))}
+        {TABS.map((t, i) => {
+          // Hide "Novo Devedor" tab for viewer role
+          if (readOnly && i === 4) return null;
+          return (
+            <button key={t} onClick={() => safeSetTab(i)} style={{
+              padding: "10px 18px", fontSize: 13, fontWeight: tab === i ? 600 : 400,
+              border: "none", borderBottom: tab === i ? "2px solid #185FA5" : "2px solid transparent",
+              background: "none", cursor: "pointer", color: tab === i ? "#185FA5" : "#888",
+              whiteSpace: "nowrap",
+            }}>
+              {t}
+            </button>
+          );
+        })}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: D.muted }}>{rows.length} registros</span>
-          <button onClick={() => setImportOpen(true)} style={toolBtn(!isLightTab)}>Importar CSV</button>
+          {!readOnly && (
+            <button onClick={() => setImportOpen(true)} style={toolBtn(!isLightTab)}>Importar CSV</button>
+          )}
         </div>
       </div>
 
@@ -870,7 +881,7 @@ function AppContent() {
       )}
 
       {/* Modals */}
-      <ClientCard open={cardOpen} data={cardData} originalData={cardOriginal} onChange={onCardChange} obs={cardObs} onObs={setCardObs} audit={cardAudit} onClose={closeCard} onSave={saveCard} onWhatsApp={cardWhatsApp} />
+      <ClientCard open={cardOpen} data={cardData} originalData={cardOriginal} onChange={onCardChange} obs={cardObs} onObs={setCardObs} audit={cardAudit} onClose={closeCard} onSave={saveCard} onWhatsApp={cardWhatsApp} readOnly={readOnly} />
       <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onImport={handleImport} />
     </div>
   );

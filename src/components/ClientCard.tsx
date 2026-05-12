@@ -21,12 +21,19 @@ interface ClientCardProps {
   onClose: () => void;
   onSave: () => void;
   onWhatsApp: () => void;
+  readOnly?: boolean;
 }
 
 const INPUT_STYLE: React.CSSProperties = {
   padding: "7px 10px", fontSize: 13, border: "1px solid #ccc",
   borderRadius: 6, color: "#111", outline: "none",
   background: "#fff", width: "100%", boxSizing: "border-box",
+};
+
+const RO_STYLE: React.CSSProperties = {
+  padding: "7px 10px", fontSize: 13, background: "#f5f5f5",
+  border: "1px solid #e5e5e5", borderRadius: 6, color: "#666",
+  minHeight: 34, boxSizing: "border-box",
 };
 
 const FIELDS = [
@@ -55,7 +62,7 @@ const FIELDS = [
 ];
 
 export default function ClientCard({
-  open, data, originalData, onChange, obs, onObs, audit, onClose, onSave, onWhatsApp,
+  open, data, originalData, onChange, obs, onObs, audit, onClose, onSave, onWhatsApp, readOnly = false,
 }: ClientCardProps) {
   if (!open || !data) return null;
 
@@ -66,8 +73,61 @@ export default function ClientCard({
   };
 
   const isChanged = (idx: number) => {
-    if (idx < 0 || !originalData) return false;
+    if (readOnly || idx < 0 || !originalData) return false;
     return data[idx] !== originalData[idx];
+  };
+
+  const renderField = (f: typeof FIELDS[number]) => {
+    // System read-only fields (dias em atraso, ult. alteracao)
+    if (f.ro) {
+      return <div style={RO_STYLE}>{getReadonlyValue(f.idx)}</div>;
+    }
+
+    // Viewer mode: all fields shown as plain text
+    if (readOnly) {
+      return (
+        <div style={RO_STYLE}>
+          {data[f.idx] || <span style={{ color: "#bbb", fontStyle: "italic" }}>--</span>}
+        </div>
+      );
+    }
+
+    const changed = isChanged(f.idx);
+
+    if (f.sel) {
+      return (
+        <select
+          value={data[f.idx] || ""}
+          onChange={(e) => onChange(f.idx, e.target.value)}
+          style={{ ...INPUT_STYLE, borderColor: changed ? "#185FA5" : "#ccc" }}
+        >
+          {(SELECT_OPTIONS[f.idx] || []).map((o) => (
+            <option key={o} value={o}>{o || "--"}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (f.date) {
+      return (
+        <input
+          type="text"
+          value={data[f.idx] || ""}
+          onChange={(e) => onChange(f.idx, mascaraData(e.target.value))}
+          placeholder="dd/mm/aaaa"
+          style={{ ...INPUT_STYLE, borderColor: changed ? "#185FA5" : "#ccc" }}
+        />
+      );
+    }
+
+    return (
+      <input
+        type="text"
+        value={data[f.idx] || ""}
+        onChange={(e) => onChange(f.idx, e.target.value)}
+        style={{ ...INPUT_STYLE, borderColor: changed ? "#185FA5" : "#ccc" }}
+      />
+    );
   };
 
   return (
@@ -86,11 +146,20 @@ export default function ClientCard({
           display: "flex", justifyContent: "space-between", alignItems: "center",
           marginBottom: 16, paddingBottom: 10, borderBottom: "1px solid #eee",
         }}>
-          <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontWeight: 500, fontSize: 15, color: "#111" }}>{data[1]}</span>
-            {data[3] && (
+            {readOnly && (
+              <span style={{
+                fontSize: 10, padding: "2px 8px", borderRadius: 6, fontWeight: 600,
+                background: "#FAEEDA", color: "#633806", border: "1px solid #e8c88a",
+                letterSpacing: "0.04em",
+              }}>
+                SOMENTE LEITURA
+              </span>
+            )}
+            {!readOnly && data[3] && (
               <button onClick={onWhatsApp} style={{
-                marginLeft: 10, padding: "2px 8px", fontSize: 11, borderRadius: 4,
+                padding: "2px 8px", fontSize: 11, borderRadius: 4,
                 cursor: "pointer", border: "1px solid #25D366", background: "#e8fbe8",
                 color: "#128C7E", fontWeight: 500,
               }}>
@@ -117,48 +186,7 @@ export default function ClientCard({
                   {f.label}
                   {changed && <span style={{ color: "#185FA5", marginLeft: 4 }}>*</span>}
                 </label>
-                {f.ro ? (
-                  <div style={{
-                    padding: "7px 10px", fontSize: 13, background: "#f5f5f5",
-                    border: "1px solid #e5e5e5", borderRadius: 6, color: "#999",
-                  }}>
-                    {getReadonlyValue(f.idx)}
-                  </div>
-                ) : f.sel ? (
-                  <select
-                    value={data[f.idx] || ""}
-                    onChange={(e) => onChange(f.idx, e.target.value)}
-                    style={{
-                      ...INPUT_STYLE,
-                      borderColor: changed ? "#185FA5" : "#ccc",
-                    }}
-                  >
-                    {(SELECT_OPTIONS[f.idx] || []).map((o) => (
-                      <option key={o} value={o}>{o || "--"}</option>
-                    ))}
-                  </select>
-                ) : f.date ? (
-                  <input
-                    type="text"
-                    value={data[f.idx] || ""}
-                    onChange={(e) => onChange(f.idx, mascaraData(e.target.value))}
-                    placeholder="dd/mm/aaaa"
-                    style={{
-                      ...INPUT_STYLE,
-                      borderColor: changed ? "#185FA5" : "#ccc",
-                    }}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={data[f.idx] || ""}
-                    onChange={(e) => onChange(f.idx, e.target.value)}
-                    style={{
-                      ...INPUT_STYLE,
-                      borderColor: changed ? "#185FA5" : "#ccc",
-                    }}
-                  />
-                )}
+                {renderField(f)}
               </div>
             );
           })}
@@ -172,18 +200,27 @@ export default function ClientCard({
               (somente no card, nao aparece na planilha)
             </span>
           </label>
-          <textarea
-            value={obs}
-            onChange={(e) => onObs(e.target.value)}
-            rows={3}
-            placeholder="Escreva observacoes livres sobre este cliente..."
-            style={{
-              width: "100%", boxSizing: "border-box", padding: "8px 10px",
-              fontSize: 13, border: "1px solid #ccc", borderRadius: 6,
-              color: "#111", outline: "none", resize: "vertical", fontFamily: "inherit",
-              background: "#fff",
-            }}
-          />
+          {readOnly ? (
+            <div style={{
+              ...RO_STYLE, minHeight: 64, whiteSpace: "pre-wrap",
+              color: obs ? "#555" : "#bbb", fontStyle: obs ? "normal" : "italic",
+            }}>
+              {obs || "Sem observacoes"}
+            </div>
+          ) : (
+            <textarea
+              value={obs}
+              onChange={(e) => onObs(e.target.value)}
+              rows={3}
+              placeholder="Escreva observacoes livres sobre este cliente..."
+              style={{
+                width: "100%", boxSizing: "border-box", padding: "8px 10px",
+                fontSize: 13, border: "1px solid #ccc", borderRadius: 6,
+                color: "#111", outline: "none", resize: "vertical", fontFamily: "inherit",
+                background: "#fff",
+              }}
+            />
+          )}
         </div>
 
         {/* Audit Trail */}
@@ -236,18 +273,29 @@ export default function ClientCard({
           display: "flex", gap: 8, justifyContent: "flex-end",
           borderTop: "1px solid #eee", paddingTop: 12,
         }}>
-          <button onClick={onClose} style={{
-            padding: "7px 18px", fontSize: 13, borderRadius: 6, cursor: "pointer",
-            border: "1px solid #ccc", background: "#f5f5f5", color: "#555",
-          }}>
-            Cancelar
-          </button>
-          <button onClick={onSave} style={{
-            padding: "7px 22px", fontSize: 13, borderRadius: 6, cursor: "pointer",
-            border: "none", background: "#185FA5", color: "#fff", fontWeight: 500,
-          }}>
-            Salvar alteracoes
-          </button>
+          {readOnly ? (
+            <button onClick={onClose} style={{
+              padding: "7px 22px", fontSize: 13, borderRadius: 6, cursor: "pointer",
+              border: "none", background: "#185FA5", color: "#fff", fontWeight: 500,
+            }}>
+              Fechar
+            </button>
+          ) : (
+            <>
+              <button onClick={onClose} style={{
+                padding: "7px 18px", fontSize: 13, borderRadius: 6, cursor: "pointer",
+                border: "1px solid #ccc", background: "#f5f5f5", color: "#555",
+              }}>
+                Cancelar
+              </button>
+              <button onClick={onSave} style={{
+                padding: "7px 22px", fontSize: 13, borderRadius: 6, cursor: "pointer",
+                border: "none", background: "#185FA5", color: "#fff", fontWeight: 500,
+              }}>
+                Salvar alteracoes
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

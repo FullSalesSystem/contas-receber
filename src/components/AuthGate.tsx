@@ -2,26 +2,32 @@
 
 import { useState, useEffect } from "react";
 import { THEME as D } from "@/data/constants";
+import RoleContext, { type UserRole } from "@/context/RoleContext";
 
 const AUTH_KEY = "cr_auth_token";
 const AUTH_PASS = process.env.NEXT_PUBLIC_AUTH_PASS || "admin123";
+const VIEW_PASS = process.env.NEXT_PUBLIC_VIEW_PASS || "viewer123";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
-  const [authed, setAuthed] = useState(false);
+  const [role, setRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [pass, setPass] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     const token = sessionStorage.getItem(AUTH_KEY);
-    if (token === "ok") setAuthed(true);
+    if (token === "admin" || token === "viewer") setRole(token as UserRole);
     setLoading(false);
   }, []);
 
   const handleLogin = () => {
     if (pass === AUTH_PASS) {
-      sessionStorage.setItem(AUTH_KEY, "ok");
-      setAuthed(true);
+      sessionStorage.setItem(AUTH_KEY, "admin");
+      setRole("admin");
+      setError("");
+    } else if (pass === VIEW_PASS) {
+      sessionStorage.setItem(AUTH_KEY, "viewer");
+      setRole("viewer");
       setError("");
     } else {
       setError("Senha incorreta");
@@ -30,7 +36,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
 
   const handleLogout = () => {
     sessionStorage.removeItem(AUTH_KEY);
-    setAuthed(false);
+    setRole(null);
     setPass("");
   };
 
@@ -45,7 +51,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!authed) {
+  if (!role) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
@@ -95,21 +101,34 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
+    <RoleContext.Provider value={role}>
       {children}
-      <button
-        onClick={handleLogout}
-        style={{
-          position: "fixed", bottom: 12, right: 12, padding: "4px 12px",
-          fontSize: 11, borderRadius: 6, cursor: "pointer",
-          border: `1px solid ${D.border}`, background: D.card, color: D.muted,
-          zIndex: 100, opacity: 0.6,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.6")}
-      >
-        Sair
-      </button>
-    </>
+      <div style={{
+        position: "fixed", bottom: 12, right: 12, display: "flex",
+        alignItems: "center", gap: 8, zIndex: 100,
+      }}>
+        {role === "viewer" && (
+          <span style={{
+            padding: "3px 10px", fontSize: 10, borderRadius: 6, fontWeight: 600,
+            background: "#FAEEDA", color: "#633806", border: "1px solid #e8c88a",
+            letterSpacing: "0.04em",
+          }}>
+            SOMENTE LEITURA
+          </span>
+        )}
+        <button
+          onClick={handleLogout}
+          style={{
+            padding: "4px 12px", fontSize: 11, borderRadius: 6, cursor: "pointer",
+            border: `1px solid ${D.border}`, background: D.card, color: D.muted,
+            opacity: 0.6,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.6")}
+        >
+          Sair
+        </button>
+      </div>
+    </RoleContext.Provider>
   );
 }
